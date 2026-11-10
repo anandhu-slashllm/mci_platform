@@ -19,8 +19,8 @@ from app.routers import (
     auth,
     client_orgs,
     client_portal,
+    cron,
     exports,
-    files,
     job_order_chat,
     job_orders,
     notifications,
@@ -69,35 +69,61 @@ mimetypes.add_type("application/manifest+json", ".webmanifest")
 async def lifespan(app: FastAPI):
     s = get_settings()
     logger.info(
-        "OTP_DEV_MODE=%s (email OTP uses Resend when False); RESEND_API_KEY set=%s; RESEND_FROM_EMAIL/EMAIL_FROM set=%s",
-        s.otp_dev_mode,
-        bool((s.resend_api_key or "").strip()),
-        bool((s.resend_from_email or s.email_from or "").strip()),
+        "Supabase url=%s anon_key set=%s service_role set=%s jwt_secret set=%s; background_mode=%s; db_pool_mode=%s",
+        s.supabase_url,
+        bool(s.supabase_anon_key),
+        bool(s.supabase_service_role_key),
+        bool(s.supabase_jwt_secret),
+        s.background_mode,
+        s.db_pool_mode,
     )
+    if s.background_mode != "loop":
+        # Serverless: scheduled work arrives via /internal/cron/* instead of in-process loops.
+        yield
+        return
     stop = asyncio.Event()
-    reminder_task = asyncio.create_task(reminder_loop(stop))
-    recommendation_task = asyncio.create_task(recommendation_refresh_loop(stop))
-    dispatch_task = asyncio.create_task(dispatch_tasks_loop(stop))
+    tasks = [
+        asyncio.create_task(reminder_loop(stop)),
+        asyncio.create_task(recommendation_refresh_loop(stop)),
+        asyncio.create_task(dispatch_tasks_loop(stop)),
+    ]
     yield
     stop.set()
-    reminder_task.cancel()
-    recommendation_task.cancel()
-    dispatch_task.cancel()
-    try:
-        await reminder_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await recommendation_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await dispatch_task
-    except asyncio.CancelledError:
-        pass
+    for t in tasks:
+        t.cancel()
+    for t in tasks:
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="MCI Workforce Platform API", version="0.1.0", lifespan=lifespan)
+
+
+class StripApiPrefixMiddleware:
+    """Serve every route under both `/x` and `/api/x`.
+
+    On Vercel the function is mounted at /api/*; the Vite dev proxy also uses /api. Accepting the
+    prefix here lets one frontend build (API base "/api") work on Vercel, Docker and dev alike.
+    """
+
+    def __init__(self, asgi_app):
+        self.app = asgi_app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            path = scope.get("path") or ""
+            if path == "/api" or path.startswith("/api/"):
+                scope = dict(scope)
+                scope["path"] = path[4:] or "/"
+                raw = scope.get("raw_path")
+                if isinstance(raw, (bytes, bytearray)) and raw.startswith(b"/api"):
+                    scope["raw_path"] = bytes(raw[4:]) or b"/"
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(StripApiPrefixMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -106,10 +132,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-os.makedirs(settings.upload_dir, exist_ok=True)
-app.include_router(files.router)
-app.mount("/static-uploads", StaticFiles(directory=settings.upload_dir), name="static-uploads")
 
 app.include_router(auth.router)
 app.include_router(workers.router)
@@ -128,6 +150,7 @@ app.include_router(notifications.router)
 app.include_router(client_portal.router)
 app.include_router(ta_portal.router)
 app.include_router(admin.router)
+app.include_router(cron.router)
 
 
 @app.get("/health")

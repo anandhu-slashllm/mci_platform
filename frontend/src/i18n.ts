@@ -706,13 +706,13 @@ const resources = {
       worker_signup_email_required: "Enter your email address.",
       worker_signup_code_required: "Enter the code from your email.",
       worker_signup_resend_note:
-        "Production: configure RESEND_API_KEY and RESEND_FROM_EMAIL (or EMAIL_FROM) on the server. Dev mode may show the code on screen.",
+        "Verification codes are emailed by Supabase Auth. For production, configure custom SMTP in the Supabase project (Authentication > Emails).",
       worker_signup_phone_dev_hint: "MVP: enter OTP code 123456 (no SMS).",
-      worker_signup_email_dev_hint: "Dev mode: your code is {{code}} (email may still be sent if configured).",
+      worker_signup_email_dev_hint: "Dev mode: your code is {{code}} (read from the local Mailpit inbox).",
       worker_signup_delivery_dev_notice:
-        "The server is in OTP_DEV_MODE: no email was sent. Use the code above, or set OTP_DEV_MODE=false in the backend .env and restart the API.",
+        "Local development: the code above was read back from the Mailpit test inbox (http://127.0.0.1:54324). Set OTP_DEV_MODE=false in the backend .env to hide it.",
       worker_signup_delivery_resend_hint:
-        "If you use Resend’s test sender (onboarding@resend.dev), you can only deliver to the same email you use to log in at resend.com. To send to any address, verify your own domain in Resend and set RESEND_FROM_EMAIL to an address on that domain. Check spam and the Resend dashboard for delivery status.",
+        "We emailed you a 6-digit code. Check your inbox and spam folder; it expires in 10 minutes.",
       client_signup_title: "Client sign up",
       client_signup_eyebrow: "Create client account",
       client_signup_subtitle: "Verify your business email with a one-time code, then finish client onboarding.",
@@ -721,7 +721,7 @@ const resources = {
       client_signup_verify_continue: "Verify and continue",
       client_signup_email_required: "Enter your email address.",
       client_signup_code_required: "Enter the verification code.",
-      client_signup_email_dev_hint: "Dev mode: your code is {{code}}.",
+      client_signup_email_dev_hint: "Dev mode: your code is {{code}} (read from the local Mailpit inbox).",
       client_signup_have_account: "I already have an account",
       client_onboarding_title: "Client onboarding",
       client_onboarding_subtitle: "Set up your organization profile before entering the client portal.",
@@ -1479,13 +1479,13 @@ const resources = {
       worker_signup_email_required: "请填写邮箱地址。",
       worker_signup_code_required: "请输入邮件中的验证码。",
       worker_signup_resend_note:
-        "正式环境：请在服务器配置 RESEND_API_KEY 与 RESEND_FROM_EMAIL（或 EMAIL_FROM）。开发模式可能会在页面显示验证码。",
+        "验证码由 Supabase Auth 发送。正式环境请在 Supabase 项目中配置自定义 SMTP（Authentication > Emails）。",
       worker_signup_phone_dev_hint: "演示：请输入验证码 123456（不发短信）。",
-      worker_signup_email_dev_hint: "开发模式：验证码为 {{code}}（若已配置仍可能发送邮件）。",
+      worker_signup_email_dev_hint: "开发模式：验证码为 {{code}}（读取自本地 Mailpit 收件箱）。",
       worker_signup_delivery_dev_notice:
-        "服务器处于 OTP_DEV_MODE：未发送真实邮件。请使用上方验证码，或在后端 .env 设置 OTP_DEV_MODE=false 并重启 API。",
+        "本地开发：上方验证码读取自 Mailpit 测试收件箱（http://127.0.0.1:54324）。在后端 .env 设置 OTP_DEV_MODE=false 可隐藏。",
       worker_signup_delivery_resend_hint:
-        "若使用 Resend 测试发件人 onboarding@resend.dev，收件邮箱必须与你在 resend.com 登录的账号邮箱一致。要向任意邮箱发送，请在 Resend 验证自有域名，并将 RESEND_FROM_EMAIL 设为该域名下的地址。同时检查垃圾箱与 Resend 后台的发送记录。",
+        "我们已向你的邮箱发送 6 位验证码。请检查收件箱与垃圾箱；验证码 10 分钟内有效。",
       client_signup_title: "客户注册",
       client_signup_eyebrow: "创建客户账号",
       client_signup_subtitle: "先用一次性验证码验证企业邮箱，再完成客户入驻信息。",
@@ -1494,7 +1494,7 @@ const resources = {
       client_signup_verify_continue: "验证并继续",
       client_signup_email_required: "请输入邮箱地址。",
       client_signup_code_required: "请输入验证码。",
-      client_signup_email_dev_hint: "开发模式：验证码是 {{code}}。",
+      client_signup_email_dev_hint: "开发模式：验证码是 {{code}}（读取自本地 Mailpit 收件箱）。",
       client_signup_have_account: "我已有账号",
       client_onboarding_title: "客户入驻",
       client_onboarding_subtitle: "进入客户门户前，请先完善组织资料。",

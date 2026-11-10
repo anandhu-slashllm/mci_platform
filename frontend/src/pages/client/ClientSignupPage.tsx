@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { api, setSession } from "../../api";
+import { api, setSession, type SessionResponse } from "../../api";
 import AuthShell from "../../components/portal/AuthShell";
 import { UberButton } from "../../components/ui/UberPrimitives";
 
@@ -13,9 +13,8 @@ type OtpRequestRes = {
   ok: boolean;
   message?: string;
   dev_code?: string | null;
-  delivery?: "dev" | "resend";
+  delivery?: "dev" | "email";
 };
-type VerifyRes = { access_token: string; role: string; locale?: string };
 
 export default function ClientSignupPage() {
   const { t, i18n } = useTranslation();
@@ -24,7 +23,7 @@ export default function ClientSignupPage() {
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
   const [devHint, setDevHint] = useState<string | null>(null);
-  const [deliveryKind, setDeliveryKind] = useState<"dev" | "resend" | null>(null);
+  const [deliveryKind, setDeliveryKind] = useState<"dev" | "email" | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const inputClass =
@@ -45,7 +44,7 @@ export default function ClientSignupPage() {
         method: "POST",
         json: { email: email.trim(), locale },
       });
-      setDeliveryKind(r.delivery ?? (r.dev_code ? "dev" : "resend"));
+      setDeliveryKind(r.delivery ?? (r.dev_code ? "dev" : "email"));
       if (r.dev_code) setDevHint(t("client_signup_email_dev_hint", { code: r.dev_code }));
       setStep("code");
     } catch (e) {
@@ -64,11 +63,11 @@ export default function ClientSignupPage() {
     setLoading(true);
     try {
       const locale = i18n.language.startsWith("zh") ? "zh" : "en";
-      const r = await api<VerifyRes>("/auth/client/email-otp/verify", {
+      const r = await api<SessionResponse>("/auth/client/email-otp/verify", {
         method: "POST",
         json: { email: email.trim(), code: code.trim(), locale },
       });
-      setSession(r.access_token, r.role);
+      setSession(r);
       nav("/client/onboarding", { replace: true });
     } catch (e) {
       setMsg(String(e));
@@ -117,7 +116,7 @@ export default function ClientSignupPage() {
                 {t("worker_signup_delivery_dev_notice")}
               </p>
             ) : null}
-            {deliveryKind === "resend" ? (
+            {deliveryKind === "email" ? (
               <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-100">
                 {t("worker_signup_delivery_resend_hint")}
               </p>

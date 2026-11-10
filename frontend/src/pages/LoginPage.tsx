@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { api, setSession } from "../api";
+import { api, setSession, type SessionResponse } from "../api";
 import AuthShell from "../components/portal/AuthShell";
 import { UberButton, UberInput } from "../components/ui/UberPrimitives";
 
@@ -33,11 +33,11 @@ export default function LoginPage() {
     setLoading(true);
     setMsg(null);
     try {
-      const r = await api<{ access_token: string; role: string }>("/auth/login", {
+      const r = await api<SessionResponse>("/auth/login", {
         method: "POST",
         json: { username: username.trim(), password },
       });
-      setSession(r.access_token, r.role);
+      setSession(r);
       if (r.role === "worker") nav("/worker");
       else if (r.role === "client") nav("/client");
       else nav("/ta");
@@ -82,11 +82,11 @@ export default function LoginPage() {
     try {
       const locale = i18n.language.startsWith("zh") ? "zh" : "en";
       const endpoint = mode === "client" ? "/auth/client/email-otp/verify" : "/auth/worker/email-otp/verify";
-      const r = await api<{ access_token: string; role: string }>(endpoint, {
+      const r = await api<SessionResponse>(endpoint, {
         method: "POST",
         json: { email: email.trim(), code: code.trim(), locale, login_only: true },
       });
-      setSession(r.access_token, r.role);
+      setSession(r);
       if (r.role === "worker") nav("/worker");
       else nav("/client");
     } catch (e) {

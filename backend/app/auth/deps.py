@@ -6,7 +6,7 @@ from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.jwt import decode_token
+from app.auth.supabase_jwt import decode_supabase_token
 from app.db.session import get_db
 from app.models import User, UserRole, WorkerProfile, WorkerStatus
 
@@ -19,14 +19,13 @@ async def get_current_user_optional(
 ) -> Optional[User]:
     if not credentials:
         return None
-    token = credentials.credentials
     try:
-        legacy = decode_token(token)
-        uid = int(legacy["sub"])
-        result = await db.execute(select(User).where(User.id == uid))
-        return result.scalar_one_or_none()
+        claims = await decode_supabase_token(credentials.credentials)
+        auth_uid = str(claims["sub"])
     except (JWTError, KeyError, TypeError, ValueError):
         return None
+    result = await db.execute(select(User).where(User.supabase_user_id == auth_uid))
+    return result.scalar_one_or_none()
 
 
 async def get_current_user(

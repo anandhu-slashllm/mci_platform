@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.base import Base
@@ -13,6 +14,7 @@ from app.models import (
     JobOrder,
     JobOrderStatus,
     PayModel,
+    RecommendationRefreshQueue,
     Shift,
     ShiftAssignment,
     User,
@@ -22,6 +24,7 @@ from app.models import (
     WorkerTier,
 )
 from app.services import timesheet_flow
+from app.services.recommendation_refresh import enqueue_worker_recommendation_refresh
 
 
 @pytest_asyncio.fixture
@@ -36,10 +39,8 @@ async def sqlite_session():
 
 
 @pytest.mark.asyncio
-async def test_completed_shift_enqueues_recommendation_refresh(sqlite_session: AsyncSession, monkeypatch):
+async def test_completed_shift_enqueues_recommendation_refresh(sqlite_session: AsyncSession):
     now = datetime.now(timezone.utc)
-    enqueued: list[int] = []
-    monkeypatch.setattr(timesheet_flow, "enqueue_worker_recommendation_refresh", lambda worker_id: enqueued.append(worker_id))
 
     org = ClientOrganization(name="ACME")
     sqlite_session.add(org)
@@ -105,4 +106,10 @@ async def test_completed_shift_enqueues_recommendation_refresh(sqlite_session: A
 
     await timesheet_flow.mark_assignment_completed_if_clocked(sqlite_session, assignment, attendance)
     assert assignment.status == AssignmentStatus.completed
-    assert enqueued == [worker.id]
+    queued = (await sqlite_session.execute(select(RecommendationRefreshQueue.worker_profile_id))).scalars().all()
+    assert queued == [worker.id]
+
+    # Enqueueing again is idempotent (one row per worker).
+    await enqueue_worker_recommendation_refresh(sqlite_session, worker.id)
+    queued = (await sqlite_session.execute(select(RecommendationRefreshQueue.worker_profile_id))).scalars().all()
+    assert queued == [worker.id]

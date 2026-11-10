@@ -22,18 +22,37 @@ def _env_bool(v: Any, *, default: bool) -> bool:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    database_url: str = "postgresql+asyncpg://mci:mci@localhost:5432/mci_workforce"
-    redis_url: str = "redis://localhost:6379/0"
+    # Supabase Postgres. Local CLI stack: postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres
+    database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres"
+    # "pooled" = long-running server with a SQLAlchemy pool (Docker, uvicorn).
+    # "serverless" = no client-side pool + pgbouncer/Supavisor-safe asyncpg settings (Vercel functions).
+    db_pool_mode: str = "pooled"
+    # Signs short-lived file-download and attendance-QR tokens (NOT user sessions; Supabase Auth issues those).
     secret_key: str = "dev-secret-change-in-production"
+
+    # --- Supabase -------------------------------------------------------------------------------
+    supabase_url: str = "http://127.0.0.1:54321"
+    supabase_anon_key: str = ""  # a.k.a. publishable key
+    supabase_service_role_key: str = ""  # a.k.a. secret key; server-side only
+    # Legacy symmetric JWT secret (HS256). Hosted projects using asymmetric signing keys verify via JWKS instead.
+    supabase_jwt_secret: str = ""
+    supabase_storage_bucket: str = "mci-uploads"
+    # Browser-facing Supabase URL for signed download links, when the API reaches Supabase on an
+    # internal address (e.g. host.docker.internal from the Docker image). Defaults to SUPABASE_URL.
+    supabase_public_url: str = ""
+    # Local dev only: Mailpit/Inbucket base URL. When set and OTP_DEV_MODE=true, the OTP request
+    # endpoints read the code back from the dev mailbox and return it as `dev_code`.
+    supabase_dev_mailbox_url: str = ""
+
+    # Background work. "loop" = in-process asyncio loops (long-running server).
+    # "cron" = only via /internal/cron/* endpoints (Vercel Cron / pg_cron), authenticated with CRON_SECRET.
+    background_mode: str = "loop"
+    cron_secret: str = ""
     fernet_key: str = ""  # optional; if empty, PII stored plaintext in dev only (not recommended prod)
 
-    upload_dir: str = "./uploads"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     otp_dev_mode: bool = True
-    otp_dev_code: str = "123456"
-
-    access_token_expire_minutes: int = 60 * 24 * 7
     shift_attendance_change_cutoff_hours: int = 4
 
     max_upload_bytes: int = 15 * 1024 * 1024  # override via MAX_UPLOAD_BYTES
@@ -45,15 +64,21 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     email_from: str = ""
 
-    resend_api_key: str = ""
-    resend_from_email: str = ""
 
     @field_validator("otp_dev_mode", mode="before")
     @classmethod
     def coerce_otp_dev_mode(cls, v: Any) -> bool:
         return _env_bool(v, default=True)
 
-    @field_validator("resend_api_key", "resend_from_email", "email_from", mode="before")
+    @field_validator(
+        "email_from",
+        "supabase_url",
+        "supabase_anon_key",
+        "supabase_service_role_key",
+        "supabase_jwt_secret",
+        "cron_secret",
+        mode="before",
+    )
     @classmethod
     def strip_quotes_whitespace(cls, v: Any) -> str:
         if v is None:

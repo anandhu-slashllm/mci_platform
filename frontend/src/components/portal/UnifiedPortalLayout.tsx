@@ -2,7 +2,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { api, clearSession } from "../../api";
+import { api, signOut } from "../../api";
 
 function MatIcon({ name, className = "" }: { name: string; className?: string }) {
   return <span className={`material-symbols-outlined ${className}`.trim()} aria-hidden>{name}</span>;
@@ -420,7 +420,7 @@ export default function UnifiedPortalLayout({
               type="button"
               className="flex w-full items-center gap-3 py-2 text-[#4b4b4b] transition-colors hover:text-black md:justify-center md:gap-0"
               onClick={() => {
-                clearSession();
+                void signOut();
                 navigate("/");
               }}
             >

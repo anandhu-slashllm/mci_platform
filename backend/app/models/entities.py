@@ -132,12 +132,13 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Supabase Auth user id (auth.users.id, UUID as text). Sessions are resolved through this column.
+    supabase_user_id: Mapped[Optional[str]] = mapped_column(String(36), unique=True, index=True, nullable=True)
     username: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True, nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(32), unique=True, index=True, nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     display_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), index=True)
-    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     locale: Mapped[str] = mapped_column(String(10), default="en")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
@@ -580,3 +581,30 @@ class JobOrderChatMessage(Base):
     ciphertext: Mapped[bytes] = mapped_column(LargeBinary(), nullable=False)
     iv: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class ShiftReminderSent(Base):
+    """Idempotency marker for shift reminders (replaces the Redis SET NX key)."""
+
+    __tablename__ = "shift_reminders_sent"
+    __table_args__ = (UniqueConstraint("assignment_id", "kind", name="uq_shift_reminder_assignment_kind"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("shift_assignments.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class RecommendationRefreshQueue(Base):
+    """Durable queue of worker profiles whose recommendations need recomputing.
+
+    Replaces an in-process set so that work enqueued by one serverless invocation is
+    picked up by the cron invocation.
+    """
+
+    __tablename__ = "recommendation_refresh_queue"
+
+    worker_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("worker_profiles.id", ondelete="CASCADE"), primary_key=True
+    )
+    queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

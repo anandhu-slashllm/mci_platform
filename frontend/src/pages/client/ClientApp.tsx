@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useNavigate } from "react-router-dom";
-import { api, apiUrl, getToken } from "../../api";
+import { api, apiUrl, getValidToken } from "../../api";
 import { ClientPortalLayout } from "../../components/client/ClientPortalLayout";
 import { fmtShiftDate, formatSgd, formatTimesheetRate } from "../../utils/timesheetFormat";
 import { JobOrderForm } from "../../components/jobOrder/JobOrderForm";
@@ -381,7 +381,7 @@ export function ClientTimesheetsPage() {
 
   async function downloadClientPayrollCsv() {
     setPayrollErr(null);
-    const token = getToken();
+    const token = await getValidToken();
     const res = await fetch(apiUrl("/exports/payroll/client-lines.csv"), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });

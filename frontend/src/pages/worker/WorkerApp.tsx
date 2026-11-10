@@ -4,7 +4,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, apiUrl, getToken } from "../../api";
+import { api, apiUrl, getValidToken } from "../../api";
 import { JobTypeMultiPicker } from "../../components/jobTypes/JobTypeMultiPicker";
 import { ClockSiteMap } from "../../components/maps/ClockSiteMap";
 import { DEFAULT_MAP_CENTER, LocationMapPicker } from "../../components/maps/LocationMapPicker";
@@ -2283,7 +2283,7 @@ function ClockPage() {
       return;
     }
     setBusy(true);
-    const auth = getToken();
+    const auth = await getValidToken();
     try {
       const res = await fetch(apiUrl("/attendance/qr-clock"), {
         method: "POST",

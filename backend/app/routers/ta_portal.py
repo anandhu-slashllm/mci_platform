@@ -5,7 +5,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_roles
+from app.auth.supabase_auth import SupabaseAuthClient, get_auth_client
 from app.db.session import get_db
+from app.services.auth_accounts import sync_auth_email
 from app.models import User, UserRole
 from app.schemas.ta_profile import TaStaffProfileOut, TaStaffProfileUpdate
 
@@ -35,6 +37,7 @@ async def update_ta_profile(
     body: TaStaffProfileUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(require_roles(UserRole.ta, UserRole.admin))],
+    auth_client: Annotated[SupabaseAuthClient, Depends(get_auth_client)],
 ):
     if body.display_name is not None:
         user.display_name = body.display_name.strip() or None
@@ -46,6 +49,8 @@ async def update_ta_profile(
             )
             if clash.scalar_one_or_none():
                 raise HTTPException(status_code=409, detail="Email already in use")
+            if em != (user.email or "").lower():
+                await sync_auth_email(auth_client, user, em)
         user.email = em
     await db.flush()
     await db.refresh(user)

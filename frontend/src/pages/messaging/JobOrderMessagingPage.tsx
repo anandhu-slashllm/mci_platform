@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, apiUrl, getToken, getUserIdFromToken } from "../../api";
+import { api, apiUrl, getUserIdFromToken, getValidToken } from "../../api";
 import { jobStatusLabelKey } from "../../components/jobOrder/jobOrderStatus";
 import {
   decryptChatMessage,
@@ -183,7 +183,7 @@ export default function JobOrderMessagingPage({ portalBase }: { portalBase: Port
         const wrappable = parts.filter((p) => keyByUser.has(p.user_id));
 
         let rk: Uint8Array;
-        const token = getToken();
+        const token = await getValidToken();
         const wrapRes = await fetch(apiUrl(`/job-order-chat/${jobId}/wrappers/me`), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           cache: "no-store",

@@ -2,7 +2,6 @@ import asyncio
 
 import pytest
 
-from app.auth.file_tokens import create_file_access_token, decode_file_access_token
 from app.config import get_settings
 from app.models import JobOrder, JobOrderStatus, PayModel
 from app.services.zoho_export import export_job_orders_csv
@@ -40,14 +39,6 @@ def test_zoho_job_orders_csv_header_golden():
         )
 
     asyncio.run(run())
-
-
-def test_file_access_jwt_roundtrip():
-    tok = create_file_access_token(subject="uploads/demo.jpg", extra={"typ": "document", "doc_id": 9})
-    payload = decode_file_access_token(tok)
-    assert payload["sub"] == "uploads/demo.jpg"
-    assert payload["typ"] == "document"
-    assert payload["doc_id"] == 9
 
 
 def test_timesheet_status_progression():

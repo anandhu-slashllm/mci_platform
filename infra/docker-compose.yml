@@ -1,47 +1,34 @@
-# Full stack: Postgres + Redis + FastAPI (API + React static UI on one port)
-# From repo root:
-#   docker compose -f infra/docker-compose.yml up --build
+# API + built PWA in one container, using the local Supabase stack for Postgres, Auth and Storage.
 #
-# URLs:
-#   App + API:  http://localhost:8000
-#   Swagger:    http://localhost:8000/docs
+#   npx supabase start                       # Postgres/Auth/Storage/Mailpit in Docker (once)
+#   cp backend/.env.example backend/.env     # then paste keys from `npx supabase status -o env`
+#   docker compose up --build                # from the repo root
+#
+# URLs: app + API http://localhost:8000 · Swagger http://localhost:8000/docs
+#       Supabase Studio http://127.0.0.1:54323 · Mailpit (OTP emails) http://127.0.0.1:54324
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: mci
-      POSTGRES_PASSWORD: mci
-      POSTGRES_DB: mci_workforce
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mci -d mci_workforce"]
-      interval: 3s
-      timeout: 5s
-      retries: 20
-
-  redis:
-    image: redis:7-alpine
-
   api:
     build:
       context: ..
       dockerfile: infra/Dockerfile.backend
+    env_file:
+      - path: ../backend/.env
+        required: true
     environment:
-      DATABASE_URL: postgresql+asyncpg://mci:mci@postgres:5432/mci_workforce
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: ${SECRET_KEY:-change-me-use-openssl-rand-hex-32}
-      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-15728640}
+      # The container reaches the host's Supabase ports through host.docker.internal.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@host.docker.internal:54322/postgres
+      POSTGRES_HOST: host.docker.internal
+      POSTGRES_PORT: "54322"
+      SUPABASE_URL: http://host.docker.internal:54321
+      SUPABASE_PUBLIC_URL: http://127.0.0.1:54321
+      SUPABASE_DEV_MAILBOX_URL: http://host.docker.internal:54324
       CORS_ORIGINS: http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173,http://127.0.0.1:5173
-      OTP_DEV_MODE: "true"
-      OTP_DEV_CODE: "123456"
+      BACKGROUND_MODE: loop
+      DB_POOL_MODE: pooled
       RUN_SEED: ${RUN_SEED:-true}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null || exit 1"]
       interval: 5s
@@ -50,6 +37,3 @@ services:
       start_period: 180s
     ports:
       - "8000:8000"
-
-volumes:
-  pgdata:

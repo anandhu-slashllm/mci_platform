@@ -1,4 +1,4 @@
-# Full stack from repo root (Postgres + Redis + API + PWA):
+# API + PWA in Docker against the local Supabase stack (start it first: `npx supabase start`):
 #   docker compose up --build
 #
 # Same as: docker compose -f infra/docker-compose.yml up --build

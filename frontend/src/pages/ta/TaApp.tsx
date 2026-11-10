@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { api, apiUrl, getRole, getToken } from "../../api";
+import { api, apiUrl, getRole, getValidToken } from "../../api";
 import { fmtShiftDate, formatSgd, formatTimesheetRate } from "../../utils/timesheetFormat";
 import { JobOrderForm } from "../../components/jobOrder/JobOrderForm";
 import { jobStatusLabelKey } from "../../components/jobOrder/jobOrderStatus";
@@ -190,8 +190,8 @@ export function TaExportsPage() {
 
   async function download(path: string, filename: string) {
     setStatus(null);
-    const token = getToken();
-    const res = await fetch(`/api${path}`, {
+    const token = await getValidToken();
+    const res = await fetch(apiUrl(path), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) {
@@ -377,7 +377,7 @@ export function TaTimesheetsPage() {
 
   async function downloadPayrollForEntry(timesheetId: number) {
     setRowExportErr(null);
-    const token = getToken();
+    const token = await getValidToken();
     const res = await fetch(apiUrl(`/exports/payroll/ta-verified-lines/${timesheetId}.csv`), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });

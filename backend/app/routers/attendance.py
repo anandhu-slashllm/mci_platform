@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.attendance_qr_tokens import decode_attendance_qr_token
 from app.auth.deps import require_roles
 from app.config import get_settings
+from app.services.storage import get_storage, new_object_key, storage_ref
 from app.db.session import get_db
 from app.models import (
     AssignmentStatus,
@@ -36,8 +37,6 @@ from app.services.clock_event_notifications import (
     notify_stakeholders_of_worker_geofence_mismatch,
 )
 from app.services.timesheet_flow import get_clock_out_pay_summary, mark_assignment_completed_if_clocked
-import os
-import uuid
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
 
@@ -79,14 +78,13 @@ async def _save_clock_photo(photo: UploadFile | None) -> str | None:
     if photo is None:
         return None
     settings = get_settings()
-    os.makedirs(settings.upload_dir, exist_ok=True)
-    ext = os.path.splitext(photo.filename or "")[1] or ".jpg"
-    name = f"att_{uuid.uuid4().hex}{ext}"
-    path = os.path.join(settings.upload_dir, name)
     content = await photo.read()
-    with open(path, "wb") as f:
-        f.write(content)
-    return f"uploads/{name}"
+    if len(content) > settings.max_upload_bytes:
+        raise HTTPException(status_code=413, detail="File too large")
+    ct = (photo.content_type or "image/jpeg").split(";")[0].strip().lower()
+    key = new_object_key("attendance", photo.filename, ".jpg")
+    await get_storage().upload(key, content, ct)
+    return storage_ref(key)
 
 
 async def perform_clock_in(

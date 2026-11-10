@@ -12,8 +12,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.auth.jwt import create_access_token
-from app.auth.otp_store import set_otp
+from auth_helpers import create_access_token
+from jose import jwt as jose_jwt
 from app.config import get_settings
 from app.db.base import Base
 from app.db.session import get_db
@@ -250,8 +250,8 @@ def test_inactive_worker_is_forced_out_from_authenticated_endpoints(worker_manag
     assert "inactive" in offers.text.lower()
 
 
-def test_inactive_worker_cannot_login_via_worker_email_otp_verify(worker_management_setup):
-    client, ta_token, _admin_token, _worker_token, worker_email, worker_profile_id, _shift_id, _offer_id = worker_management_setup
+def test_inactive_worker_cannot_login_via_worker_email_otp_verify(worker_management_setup, fake_auth):
+    client, ta_token, _admin_token, worker_token, worker_email, worker_profile_id, _shift_id, _offer_id = worker_management_setup
 
     inactive = client.patch(
         f"/workers/{worker_profile_id}/management",
@@ -260,15 +260,16 @@ def test_inactive_worker_cannot_login_via_worker_email_otp_verify(worker_managem
     )
     assert inactive.status_code == 200, inactive.text
 
-    code = "123456"
-    asyncio.run(set_otp(f"email:{worker_email.lower()}", code))
-    verify = client.post("/auth/worker/email-otp/verify", json={"email": worker_email, "code": code})
+    # The worker already has a Supabase Auth identity (the one their access token was issued for).
+    fake_auth.add_user(worker_email, uid=jose_jwt.get_unverified_claims(worker_token)["sub"])
+    assert client.post("/auth/worker/email-otp/request", json={"email": worker_email}).status_code == 200
+    verify = client.post("/auth/worker/email-otp/verify", json={"email": worker_email, "code": fake_auth.OTP_CODE})
     assert verify.status_code == 403, verify.text
     assert "inactive" in verify.text.lower()
 
 
-def test_blacklisted_worker_cannot_login_via_worker_email_otp_verify(worker_management_setup):
-    client, _ta_token, admin_token, _worker_token, worker_email, worker_profile_id, _shift_id, _offer_id = worker_management_setup
+def test_blacklisted_worker_cannot_login_via_worker_email_otp_verify(worker_management_setup, fake_auth):
+    client, _ta_token, admin_token, worker_token, worker_email, worker_profile_id, _shift_id, _offer_id = worker_management_setup
     blacklist = client.patch(
         f"/workers/{worker_profile_id}/management",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -276,9 +277,10 @@ def test_blacklisted_worker_cannot_login_via_worker_email_otp_verify(worker_mana
     )
     assert blacklist.status_code == 200, blacklist.text
 
-    code = "654321"
-    asyncio.run(set_otp(f"email:{worker_email.lower()}", code))
-    verify = client.post("/auth/worker/email-otp/verify", json={"email": worker_email, "code": code})
+    # The worker already has a Supabase Auth identity (the one their access token was issued for).
+    fake_auth.add_user(worker_email, uid=jose_jwt.get_unverified_claims(worker_token)["sub"])
+    assert client.post("/auth/worker/email-otp/request", json={"email": worker_email}).status_code == 200
+    verify = client.post("/auth/worker/email-otp/verify", json={"email": worker_email, "code": fake_auth.OTP_CODE})
     assert verify.status_code == 403, verify.text
     assert "blacklisted" in verify.text.lower()
 

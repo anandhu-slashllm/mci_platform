@@ -1,37 +1,41 @@
-"""In-app shift reminders ~24h and ~2h before start (PRD). Idempotency via Redis or in-process fallback."""
+"""In-app shift reminders ~24h and ~2h before start (PRD).
+
+Idempotency is a unique (assignment_id, kind) row in shift_reminders_sent, so it holds across
+processes and serverless invocations.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import time
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth.otp_store import get_redis_optional
 from app.db.session import AsyncSessionLocal
-from app.models import AssignmentStatus, ShiftAssignment, User, WorkerProfile
+from app.models import AssignmentStatus, ShiftAssignment, ShiftReminderSent, User, WorkerProfile
 
-_reminder_memory: dict[str, float] = {}
-_MEMORY_TTL = 86400 * 3
+logger = logging.getLogger(__name__)
 
 
-async def _mark_sent(assignment_id: int, kind: str) -> bool:
+async def _mark_sent(db: AsyncSession, assignment_id: int, kind: str) -> bool:
     """Return True if this is the first send (should notify)."""
-    key = f"shift_reminder:{assignment_id}:{kind}"
-    r = await get_redis_optional()
-    if r:
-        ok = await r.set(key, "1", nx=True, ex=_MEMORY_TTL)
-        return bool(ok)
-    now = time.time()
-    cutoff = now - _MEMORY_TTL
-    dead = [k for k, exp in _reminder_memory.items() if exp < cutoff]
-    for k in dead:
-        del _reminder_memory[k]
-    if key in _reminder_memory and _reminder_memory[key] > now:
+    existing = await db.execute(
+        select(ShiftReminderSent.id).where(
+            ShiftReminderSent.assignment_id == assignment_id, ShiftReminderSent.kind == kind
+        )
+    )
+    if existing.first():
         return False
-    _reminder_memory[key] = now + _MEMORY_TTL
+    try:
+        async with db.begin_nested():
+            db.add(ShiftReminderSent(assignment_id=assignment_id, kind=kind, sent_at=datetime.now(timezone.utc)))
+            await db.flush()
+    except IntegrityError:
+        return False  # a concurrent run claimed it
     return True
 
 
@@ -57,7 +61,7 @@ async def process_shift_reminders_once() -> int:
             delta = (start - now).total_seconds()
             # ~24 hours before shift
             if 23 * 3600 <= delta <= 25 * 3600:
-                if await _mark_sent(a.id, "24h"):
+                if await _mark_sent(db, a.id, "24h"):
                     wp = await db.get(WorkerProfile, a.worker_id)
                     if wp:
                         u = await db.get(User, wp.user_id)
@@ -72,7 +76,7 @@ async def process_shift_reminders_once() -> int:
                             sent += 1
             # ~2 hours before shift
             if 1.75 * 3600 <= delta <= 2.25 * 3600:
-                if await _mark_sent(a.id, "2h"):
+                if await _mark_sent(db, a.id, "2h"):
                     wp = await db.get(WorkerProfile, a.worker_id)
                     if wp:
                         u = await db.get(User, wp.user_id)
@@ -94,7 +98,7 @@ async def reminder_loop(stop: asyncio.Event) -> None:
         try:
             await process_shift_reminders_once()
         except Exception:
-            pass
+            logger.exception("shift reminder loop error")
         try:
             await asyncio.wait_for(stop.wait(), timeout=120.0)
         except asyncio.TimeoutError:

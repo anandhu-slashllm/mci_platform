@@ -6,8 +6,9 @@ from typing import Any
 
 from sqlalchemy import select
 
-from app.auth.passwords import hash_password
+from app.auth.supabase_auth import get_auth_client
 from app.db.session import AsyncSessionLocal
+from app.services.auth_accounts import ensure_auth_user
 from app.models import (
     AssignmentStatus,
     AttendanceRecord,
@@ -80,9 +81,16 @@ def apply_demo_login(user: User, phone: str) -> None:
     pair = DEMO_LOGIN_BY_PHONE.get(phone)
     if not pair:
         return
-    username, plain = pair
-    user.username = username
-    user.hashed_password = hash_password(plain)
+    user.username = pair[0]
+
+
+async def link_demo_logins(db) -> None:
+    """Create/update the Supabase Auth user (email + demo password) for every demo account."""
+    client = get_auth_client()
+    for phone, (_username, plain) in DEMO_LOGIN_BY_PHONE.items():
+        user = (await db.execute(select(User).where(User.phone == phone))).scalar_one_or_none()
+        if user is not None:
+            await ensure_auth_user(db, client, user, password=plain)
 
 
 async def ensure_user(
@@ -1237,7 +1245,8 @@ async def main() -> None:
         await _upsert_model(
             db,
             PaymentRecord,
-            [PaymentRecord.worker_id == w8.id],
+            # Key on the demo file too: real payroll runs add more records for the same worker.
+            [PaymentRecord.worker_id == w8.id, PaymentRecord.payment_instructions_file_url == "https://demo.local/payroll/payment-batch-apr.csv"],
             {
                 "worker_id": w8.id,
                 "timesheet_entry_ids": [timesheet_w8.id, timesheet_w3.id],
@@ -1250,7 +1259,8 @@ async def main() -> None:
         await _upsert_model(
             db,
             PaymentRecord,
-            [PaymentRecord.worker_id == w1.id],
+            # Key on the demo file too: real payroll runs add more records for the same worker.
+            [PaymentRecord.worker_id == w1.id, PaymentRecord.payment_instructions_file_url == "https://demo.local/payroll/payment-batch-worker1.csv"],
             {
                 "worker_id": w1.id,
                 "timesheet_entry_ids": [timesheet_history_w1.id],
@@ -1295,6 +1305,7 @@ async def main() -> None:
                 {"user_id": uid, "title": title, "body": body, "payload": payload},
             )
 
+        await link_demo_logins(db)
         await db.commit()
         print(
             "Realistic seed complete. Login (POST /auth/login): "
@@ -1302,7 +1313,7 @@ async def main() -> None:
             "worker_4/demo_worker_4, worker_5/demo_worker_5, worker_6/demo_worker_6, "
             "worker_7/demo_worker_7, worker_8/demo_worker_8, ta/demo_ta, ta_2/demo_ta_2, "
             "client/demo_client, client_2/demo_client_2, admin/demo_admin. "
-            "OTP still works for these phones when OTP_DEV_MODE is on. "
+            "Accounts with an email can also use email OTP (local codes land in Mailpit). "
             f"Scenario timestamps are anchored to { _iso(now) } UTC."
         )
 

@@ -88,7 +88,7 @@ async def mark_assignment_completed_if_clocked(
         _entry, created = await ensure_timesheet_for_assignment(db, assignment, attendance)
         if created:
             await adjust_worker_points(db, assignment.worker_id, POINTS_PER_COMPLETED_SHIFT)
-            enqueue_worker_recommendation_refresh(assignment.worker_id)
+            await enqueue_worker_recommendation_refresh(db, assignment.worker_id)
 
 
 def _hours_from_attendance(attendance: AttendanceRecord, shift: Shift) -> tuple[float, float, float]:

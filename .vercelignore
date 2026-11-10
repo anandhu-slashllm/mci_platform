@@ -1,0 +1,15 @@
+myenv/
+backend/.venv/
+backend/tests/
+backend/.env*
+!backend/.env.example
+backend/static/
+graphify-out/
+demos/
+infra/
+supabase/
+*.pdf
+**/__pycache__/
+.pytest_cache/
+.env
+.env.*

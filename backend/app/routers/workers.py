@@ -1,15 +1,15 @@
-import os
-import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_roles
-from app.auth.file_tokens import create_file_access_token
+from app.auth.supabase_auth import SupabaseAuthClient, get_auth_client
 from app.config import get_settings
+from app.services.storage import get_storage, new_object_key, storage_ref
 from app.db.session import get_db
+from app.services.auth_accounts import sync_auth_email
 from app.models import (
     ClientOrganization,
     Document,
@@ -305,6 +305,7 @@ async def update_my_profile(
     body: WorkerProfileIn,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(require_roles(UserRole.worker))],
+    auth_client: Annotated[SupabaseAuthClient, Depends(get_auth_client)],
 ):
     r = await db.execute(select(WorkerProfile).where(WorkerProfile.user_id == user.id))
     wp = r.scalar_one_or_none()
@@ -330,6 +331,8 @@ async def update_my_profile(
             )
             if clash.scalar_one_or_none():
                 raise HTTPException(status_code=409, detail="Email already in use")
+            if em != (user.email or "").lower():
+                await sync_auth_email(auth_client, user, em)
         user.email = em
     if body.phone is not None:
         pn = body.phone.strip().replace(" ", "")
@@ -424,15 +427,11 @@ async def upload_document(
     if ct not in _ALLOWED_DOC_CT:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ct}")
 
-    ext = os.path.splitext(file.filename or "")[1] or ".bin"
-    os.makedirs(settings.upload_dir, exist_ok=True)
-    name = f"{uuid.uuid4().hex}{ext}"
-    path = os.path.join(settings.upload_dir, name)
-    with open(path, "wb") as f:
-        f.write(content)
-    rel = f"uploads/{name}"
-    db.add(Document(worker_id=wp.id, doc_type=doc_type, file_path=rel))
-    out_path = rel
+    storage = get_storage()
+    key = new_object_key(f"documents/worker-{wp.id}", file.filename, ".bin")
+    await storage.upload(key, content, ct)
+    db.add(Document(worker_id=wp.id, doc_type=doc_type, storage_bucket=storage.bucket, storage_object_path=key))
+    out_path = storage_ref(key)
 
     await db.flush()
     await _recalc_completeness(db, wp, user)
@@ -476,19 +475,13 @@ async def document_signed_url(
     doc = await db.get(Document, doc_id)
     if not doc or doc.worker_id != wp.id:
         raise HTTPException(404)
-    if doc.storage_object_path and doc.storage_bucket:
+    if not doc.storage_object_path:
         raise HTTPException(
             status_code=410,
-            detail="Document was stored in external storage that is no longer available; please re-upload.",
+            detail="Document was stored on a previous server's local disk and is no longer available; please re-upload.",
         )
-    if not doc.file_path:
-        raise HTTPException(404, detail="No file backing")
-    token = create_file_access_token(
-        subject=doc.file_path,
-        extra={"typ": "document", "doc_id": doc_id},
-        expires_minutes=15,
-    )
-    return {"token": token, "url": f"/files/access?token={token}"}
+    url = await get_storage().signed_url(doc.storage_object_path, expires_in=15 * 60)
+    return {"url": url, "expires_in": 15 * 60}
 
 
 @router.get("/directory", response_model=list[WorkerDirectoryEntryOut])

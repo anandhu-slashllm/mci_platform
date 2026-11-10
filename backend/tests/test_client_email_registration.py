@@ -54,7 +54,8 @@ def client():
 def test_client_email_otp_creates_account(client: TestClient):
     r1 = client.post("/auth/client/email-otp/request", json={"email": "new.client@example.com", "locale": "en"})
     assert r1.status_code == 200
-    assert r1.json().get("dev_code") == "123456"
+    # Codes are emailed by Supabase Auth; only the local Mailpit hook echoes them back.
+    assert r1.json()["delivery"] == "email" and r1.json()["dev_code"] is None
 
     r2 = client.post(
         "/auth/client/email-otp/verify",

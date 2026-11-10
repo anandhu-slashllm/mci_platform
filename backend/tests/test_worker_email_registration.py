@@ -56,7 +56,7 @@ def test_worker_email_otp_creates_account(client: TestClient):
     assert r1.status_code == 200
     body = r1.json()
     assert body.get("ok") is True
-    assert body.get("dev_code") == "123456"
+    assert body["delivery"] == "email" and body["dev_code"] is None
 
     r2 = client.post(
         "/auth/worker/email-otp/verify",

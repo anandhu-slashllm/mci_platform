@@ -8,5 +8,8 @@
     "dev": "npm run dev -w mci-workforce-frontend",
     "build": "npm run build -w mci-workforce-frontend",
     "preview": "npm run preview -w mci-workforce-frontend"
+  },
+  "devDependencies": {
+    "supabase": "^2.122.1"
   }
 }

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.auth.attendance_qr_tokens import create_attendance_qr_token
-from app.auth.jwt import create_access_token
+from auth_helpers import create_access_token
 from app.config import get_settings
 from app.db.base import Base
 from app.db.session import get_db

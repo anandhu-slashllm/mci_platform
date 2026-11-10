@@ -1,6 +1,5 @@
 import csv
 import io
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
@@ -10,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import require_roles
-from app.config import get_settings
+from app.services.storage import get_storage, storage_ref
 from app.db.session import get_db
 from app.models import JobOrder, PaymentRecord, PaymentStatus, TimesheetEntry, TimesheetStatus, User, UserRole, WorkerProfile
 from app.services.audit import log_audit
@@ -45,8 +44,6 @@ async def generate_payment_file(
     for e in entries:
         by_worker.setdefault(e.worker_id, []).append(e)
 
-    settings = get_settings()
-    os.makedirs(settings.upload_dir, exist_ok=True)
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["worker_name", "bank_account", "bank_name", "amount_sgd", "timesheet_ids"])
@@ -64,11 +61,9 @@ async def generate_payment_file(
         for e in ents:
             e.status = TimesheetStatus.payment_released
 
-    name = f"pay_{uuid.uuid4().hex}.csv"
-    path = os.path.join(settings.upload_dir, name)
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        f.write(buf.getvalue())
-    rel = f"uploads/{name}"
+    key = f"payroll/pay_{uuid.uuid4().hex}.csv"
+    await get_storage().upload(key, buf.getvalue().encode("utf-8"), "text/csv")
+    rel = storage_ref(key)
 
     for wid, eids, total in file_rows:
         pr = PaymentRecord(
@@ -96,7 +91,7 @@ async def generate_payment_file(
         actor_user_id=user.id,
         action="payment_file_generated",
         entity_type="PaymentBatch",
-        entity_id=name,
+        entity_id=key,
     )
     return {"ok": True, "file": rel, "workers": len(by_worker)}
 

@@ -1,0 +1,14 @@
+**/node_modules
+**/.venv
+myenv
+**/__pycache__
+**/.pytest_cache
+backend/.env
+backend/.env.*
+backend/tests
+backend/tests_e2e
+frontend/dist
+graphify-out
+supabase
+.git
+*.pdf

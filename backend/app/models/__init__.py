@@ -21,11 +21,13 @@ from app.models.entities import (
     PaymentStatus,
     PreferredWorker,
     Rating,
+    RecommendationRefreshQueue,
     Shift,
     ShiftAssignment,
     ShiftDispatchTask,
     ShiftOffer,
     ShiftOfferStatus,
+    ShiftReminderSent,
     TaClientContract,
     TaClientContractStatus,
     TimesheetEntry,
@@ -42,6 +44,8 @@ from app.models.entities import (
 )
 
 __all__ = [
+    "RecommendationRefreshQueue",
+    "ShiftReminderSent",
     "User",
     "UserRole",
     "WorkerProfile",

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.auth.jwt import create_access_token
+from auth_helpers import create_access_token, auth_uid_for_user
 from app.config import get_settings
 from app.db.base import Base
 from app.db.session import get_db
@@ -59,9 +59,10 @@ def ta_client_ctx():
     asyncio.run(engine.dispose())
 
 
-def test_ta_get_and_update_email(ta_client_ctx):
+def test_ta_get_and_update_email(ta_client_ctx, fake_auth):
     tc, ta_id = ta_client_ctx
     token = create_access_token(str(ta_id), {"role": "ta"})
+    auth_uid = fake_auth.add_user("ta_before@example.com", uid=auth_uid_for_user(ta_id))
     h = {"Authorization": f"Bearer {token}"}
 
     r = tc.get("/ta/me/profile", headers=h)
@@ -77,6 +78,8 @@ def test_ta_get_and_update_email(ta_client_ctx):
     assert r2.status_code == 200
     assert r2.json()["email"] == "ta_after@example.com"
     assert r2.json()["display_name"] == "Agent One"
+    # The Supabase login email follows the profile email.
+    assert fake_auth.users[auth_uid]["email"] == "ta_after@example.com"
 
     r3 = tc.get("/ta/me/profile", headers=h)
     assert r3.json()["email"] == "ta_after@example.com"

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { api, clearSession, getRole, getToken } from "./api";
+import { api, getRole, getToken, signOut } from "./api";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import WorkerApp from "./pages/worker/WorkerApp";
@@ -227,7 +227,7 @@ export default function App() {
               type="button"
               className="text-xs text-[#4b4b4b] underline"
               onClick={() => {
-                clearSession();
+                void signOut();
                 navigate("/");
               }}
             >

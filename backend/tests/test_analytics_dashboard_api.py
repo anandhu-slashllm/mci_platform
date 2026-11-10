@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-jwt-tests-only-32b")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
-from app.auth.jwt import create_access_token
+from auth_helpers import create_access_token
 from app.config import get_settings
 from app.db.base import Base
 from app.db.session import get_db

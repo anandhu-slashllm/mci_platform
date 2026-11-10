@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { api, apiUrl, getToken } from "../../api";
+import { api, apiUrl, getToken, getValidToken } from "../../api";
 import { CertificationMultiPicker } from "../../components/certifications/CertificationMultiPicker";
 import { JobTypeMultiPicker } from "../../components/jobTypes/JobTypeMultiPicker";
 import { DEFAULT_MAP_CENTER, LocationMapPicker } from "../../components/maps/LocationMapPicker";
@@ -370,7 +370,7 @@ export default function WorkerOnboardingPage() {
   async function uploadFile(docType: string, file: File) {
     setMsg(null);
     setUploadedDocNames((m) => ({ ...m, [docType]: file.name }));
-    const token = getToken();
+    const token = await getValidToken();
     const fd = new FormData();
     fd.append("file", file);
     setUploadPct((m) => ({ ...m, [docType]: 5 }));
